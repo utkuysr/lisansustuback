@@ -14,8 +14,8 @@ export class EmailService {
       port: parseInt(process.env.SMTP_PORT || '587'),
       secure: process.env.SMTP_SECURE === 'true' || false,
       auth: {
-        user: process.env.SMTP_USER || 'u3234240@gmail.com',
-        pass: process.env.SMTP_PASSWORD || 'lkfl ytrg hwhw ndfi',
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD,
       },
     });
   }
@@ -59,24 +59,58 @@ export class EmailService {
     }
   }
 
+  async sendDecisionNotification(params: {
+    to: string;
+    firstName: string;
+    programName: string;
+    status: string;
+    notes?: string;
+    score?: number;
+  }): Promise<void> {
+    const statusLabels: Record<string, string> = {
+      accepted: 'KABUL EDİLDİ',
+      rejected: 'REDDEDİLDİ',
+      waitlisted: 'BEKLEME LİSTESİNE ALINDI',
+      interview_required: 'MÜLAKAT GEREKLİ',
+      pending_review: 'İNCELEMEDE',
+    };
+    const label = statusLabels[params.status] ?? params.status.toUpperCase();
+    const scoreHtml = params.score != null ? `<p>Puan: <strong>${params.score}</strong>/100</p>` : '';
+    const notesHtml = params.notes ? `<p>Notlar: ${params.notes}</p>` : '';
+
+    await this.transporter.sendMail({
+      from: process.env.SMTP_FROM || 'noreply@example.com',
+      to: params.to,
+      subject: `Başvuru Sonucu: ${params.programName}`,
+      html: `
+        <h2>Sayın ${params.firstName},</h2>
+        <p><strong>${params.programName}</strong> programına yaptığınız başvurunun değerlendirmesi tamamlanmıştır.</p>
+        <h3 style="color:#007bff;">Sonuç: ${label}</h3>
+        ${scoreHtml}
+        ${notesHtml}
+        <hr/>
+        <p style="font-size:12px;color:#888;">Bu e-posta otomatik olarak gönderilmiştir.</p>
+      `,
+    });
+  }
+
   // Verification code doğrula
   async verifyCode(email: string, code: string): Promise<{ message: string }> {
-    const user = await this.usersService.findByEmail(email);
+    const userAuth = await this.usersService.findUserAuthByEmail(email);
 
-    if (!user.verificationCode || !user.verificationCodeExpiresAt) {
+    if (!userAuth?.passwordResetToken || !userAuth?.passwordResetExpires) {
       throw new BadRequestException('No verification code found for this email');
     }
 
-    if (user.verificationCode !== code) {
+    if (userAuth.passwordResetToken !== code) {
       throw new BadRequestException('Invalid verification code');
     }
 
     const now = new Date();
-    if (now > user.verificationCodeExpiresAt) {
+    if (now > userAuth.passwordResetExpires) {
       throw new BadRequestException('Verification code has expired');
     }
 
-    // Email verified olarak işaretle
     await this.usersService.markEmailAsVerified(email);
 
     return { message: 'Email verified successfully' };

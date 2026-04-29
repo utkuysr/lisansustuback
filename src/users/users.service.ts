@@ -2,51 +2,82 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
+import { UserAuth } from 'src/auth/entities/user-auth.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 import { RolesService } from 'src/roles/roles.service';
+import { validatePasswordPolicy } from 'src/auth/utils/password-policy';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(UserAuth)
+    private readonly userAuthRepository: Repository<UserAuth>,
     private readonly rolesService: RolesService,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(
+    createUserDto: CreateUserDto,
+    options?: { allowRoleOverride?: boolean },
+  ): Promise<User> {
     const existingEmail = await this.userRepository.findOneBy({ email: createUserDto.email });
     if (existingEmail) {
-      throw new BadRequestException("Bu Email Kullanılıyor.");
+      throw new BadRequestException('Bu Email Kullanılıyor.');
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(createUserDto.passwordHash, 10);
+    const policy = validatePasswordPolicy(createUserDto.password);
+    if (!policy.ok) {
+      throw new BadRequestException(policy.message);
+    }
+    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-    // Get default role (student)
-    let role;
-    try {
-      role = await this.rolesService.findByName('student');
-    } catch {
-      // If student role doesn't exist, get first role or use roleId from DTO
-      if (createUserDto.roleId) {
-        role = { id: createUserDto.roleId };
-      } else {
-        throw new BadRequestException("Default role 'student' not found");
-      }
+    let role = await this.rolesService.findByName('student');
+    if (options?.allowRoleOverride && createUserDto.roleId) {
+      role = await this.rolesService.findOne(createUserDto.roleId);
     }
 
-    const user = this.userRepository.create({
-      ...createUserDto,
-      userType: createUserDto.userType || 'student',
-      passwordHash: hashedPassword,
-      isActive: true,
-      isEmailVerified: false,
-      createDate: new Date(),
-      role: role,
-    });
-    return this.userRepository.save(user);
+    const insertResult = await this.userRepository
+      .createQueryBuilder()
+      .insert()
+      .into(User)
+      .values({
+        email: createUserDto.email,
+        passwordHash: hashedPassword,
+        firstName: createUserDto.firstName,
+        lastName: createUserDto.lastName,
+        username: createUserDto.username,
+        userType: createUserDto.userType || 'student',
+        isActive: true,
+        isEmailVerified: false,
+        role,
+        faculty: createUserDto.faculty,
+        department: createUserDto.department,
+        createdBy: () =>
+          '(SELECT user_id FROM public.user_schemas WHERE schema_name = current_user)',
+      } as any)
+      .returning('id')
+      .execute();
+
+    const insertedId = insertResult.identifiers?.[0]?.id;
+    if (!insertedId) {
+      throw new BadRequestException('Kullanıcı kaydı oluşturulamadı.');
+    }
+
+    await this.userAuthRepository.save(
+      this.userAuthRepository.create({
+        userId: insertedId,
+        passwordHash: hashedPassword,
+        mustChangePassword: false,
+        isStaff: false,
+        isSuperuser: false,
+        createdAt: new Date(),
+      }),
+    );
+
+    return this.findOne(String(insertedId));
   }
 
   findAll(): Promise<User[]> {
@@ -56,78 +87,99 @@ export class UsersService {
   async findOne(id: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id: +id },
-      relations: ['role']
+      relations: ['role'],
     });
-
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-
     return user;
   }
 
   async findByEmail(email: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { email },
-      relations: ['role']
+      relations: ['role'],
     });
-
     if (!user) {
       throw new NotFoundException(`User with email ${email} not found`);
     }
-
     return user;
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
-    
-    // Hash password if provided
-    if (updateUserDto.passwordHash) {
-      updateUserDto.passwordHash = await bcrypt.hash(updateUserDto.passwordHash, 10);
+
+    if (updateUserDto.password) {
+      const policy = validatePasswordPolicy(updateUserDto.password);
+      if (!policy.ok) {
+        throw new BadRequestException(policy.message);
+      }
+      (updateUserDto as any).passwordHash = await bcrypt.hash(updateUserDto.password, 10);
+      delete updateUserDto.password;
     }
 
-    // Eğer roleId güncelleniyorsa, yeni role'ü fetch et
     if (updateUserDto.roleId) {
       const role = await this.rolesService.findOne(updateUserDto.roleId);
       user.role = role;
-      // UpdateUserDto'dan roleId'yi kaldır (role object'i baştan set ettik)
       delete updateUserDto.roleId;
+      await this.userRepository.update({ id: user.id }, { userType: role.name });
+      user.userType = role.name;
     }
 
     Object.assign(user, updateUserDto);
     user.updateDate = new Date();
-    return this.userRepository.save(user);
+    await this.userRepository.save(user);
+    return this.findOne(id);
+  }
+
+  async updatePasswordHash(id: string, hashedPassword: string): Promise<void> {
+    await this.userRepository.update({ id: +id }, { passwordHash: hashedPassword, updateDate: new Date() });
+    await this.userAuthRepository.update({ userId: +id }, { passwordHash: hashedPassword });
   }
 
   async resetPassword(id: string, newPassword: string): Promise<{ message: string }> {
-    const user = await this.findOne(id);
+    const policy = validatePasswordPolicy(newPassword);
+    if (!policy.ok) {
+      throw new BadRequestException(policy.message);
+    }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.passwordHash = hashedPassword;
-    user.updateDate = new Date();
-    await this.userRepository.save(user);
+    await this.updatePasswordHash(id, hashedPassword);
     return { message: 'Password reset successfully' };
   }
 
   async setVerificationCode(email: string, code: string, expiresAt: Date): Promise<void> {
-    await this.userRepository.update(
-      { email },
+    const user = await this.findByEmail(email);
+    await this.userAuthRepository.update(
+      { userId: user.id },
       {
-        verificationCode: code,
-        verificationCodeExpiresAt: expiresAt,
-      }
+        passwordResetToken: code,
+        passwordResetExpires: expiresAt,
+        updatedAt: new Date(),
+      },
     );
   }
 
+  async findUserAuthByEmail(email: string): Promise<UserAuth | null> {
+    const user = await this.findByEmail(email);
+    return this.userAuthRepository.findOneBy({ userId: user.id });
+  }
+
   async markEmailAsVerified(email: string): Promise<void> {
+    const user = await this.findByEmail(email);
     await this.userRepository.update(
       { email },
       {
         isEmailVerified: true,
         emailVerifiedAt: new Date(),
-        verificationCode: undefined,
-        verificationCodeExpiresAt: undefined,
-      }
+      },
+    );
+    await this.userAuthRepository.update(
+      { userId: user.id },
+      {
+        passwordResetToken: undefined,
+        passwordResetExpires: undefined,
+        updatedAt: new Date(),
+      },
     );
   }
 
