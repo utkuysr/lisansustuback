@@ -1,0 +1,200 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}{\f1 Consolas;}}
+\fs24
+\b BelekUni Graduate Admission API - Detayli Teknik Sunum Dokumani\b0\par
+\par
+\b 1) Proje Ozeti\b0\par
+Bu proje, BelekUni'de lisansustu ogrenci basvurularinin dijital olarak toplanmasi, degerlendirilmesi ve sonuclandirilmasi icin gelistirilmis bir \b NestJS tabanli backend API\b0 uygulamasidir.\par
+Uygulamanin ana amaci, basvuru surecini manuel takipten cikarip standart, olculebilir ve denetlenebilir bir yapiya donusturmektir.\par
+\par
+\b Proje ne ise yarar?\b0\par
+- Aday kullanicilar sisteme kayit olabilir ve giris yapabilir.\par
+- Adaylar uygun programlara basvuru olusturur, zorunlu belgeleri yukler.\par
+- Admin rolundeki kullanicilar enstitu/program/rol yonetimini yapar.\par
+- Komisyon uyeleri basvurulari inceleyip karar (desicion) kaydi olusturur.\par
+- Butun bu surec tek bir API uzerinden izlenebilir ve raporlanabilir hale gelir.\par
+\par
+\b Hedef faydalar:\b0\par
+- Surec hizlanmasi (evrak ve onay akislarinin dijitallesmesi)\par
+- Veri butunlugu (tek merkezde dogrulanmis kayitlar)\par
+- Yetki kontrollu erisim (rol bazli endpoint korumasi)\par
+- Kurumsal izlenebilirlik (created\_by / updated\_by gibi audit alanlari)\par
+\par
+\b 2) Kullanilan Teknolojiler\b0\par
+\b Backend Framework:\b0  NestJS (v11)\par
+\b Dil:\b0  TypeScript\par
+\b ORM:\b0  TypeORM (v0.3)\par
+\b Veritabani:\b0  PostgreSQL (pg)\par
+\b Kimlik Dogrulama:\b0  JWT + Passport + passport-jwt\par
+\b Sifreleme:\b0  bcrypt\par
+\b Validation/Transformation:\b0  class-validator, class-transformer\par
+\b Dosya Yukleme:\b0  Multer\par
+\b E-posta:\b0  Nodemailer\par
+\b Statik Dosya Servisi:\b0  @nestjs/serve-static\par
+\b Test/Lint/Format:\b0  Jest, ESLint, Prettier\par
+\par
+\b 3) Mimari ve Modul Yapisi\b0\par
+\b Mimari yaklasim:\b0\par
+- Controller -> Service -> Repository ayrimi ile katmanli yapi\par
+- DTO + class-validator ile giris verisi dogrulama\par
+- TypeORM entity iliskileri ile schema-model eslesmesi\par
+- JWT guard ile endpoint seviyesinde erisim kontrolu\par
+\par
+Ana moduller:\par
+- AuthModule\par
+- UsersModule\par
+- RolesModule\par
+- InstituteModule\par
+- ProgramsModule\par
+- ApplicationsModule\par
+- DocumentsModule\par
+- DesicionModule\par
+\par
+Uygulama \b TypeOrmModule.forRootAsync\b0  ile PostgreSQL'e baglanir. Varsayilan schema \b belek_graduate_admission\b0 olarak ayarlidir; \b users\b0 tablosu ise \b public\b0 schema altindadir.\par
+\par
+\b Modul sorumluluk ozeti:\b0\par
+- \b AuthModule:\b0  login, register, sifre degistirme, e-posta kod dogrulama\par
+- \b UsersModule:\b0  kullanici CRUD, profil, sifre reset\par
+- \b RolesModule:\b0  rol tanimlari ve rol yonetimi\par
+- \b Institute/Programs:\b0  akademik yapi yonetimi\par
+- \b Applications:\b0  basvuru olusturma/listeleme/guncelleme\par
+- \b Documents:\b0  diploma-transkript-ydt yukleme akislar\par
+- \b Desicion:\b0  komisyon karari olusturma/guncelleme\par
+\par
+\b 4) Guvenlik ve Yetkilendirme\b0\par
+- JWT guard ile korunmus endpointler vardir.\par
+- Role bazli kisitlar uygulanmistir (admin, komisyon uyesi, standart kullanici).\par
+- Kritk akislar: kullanici olusturma, rol guncelleme/silme, enstitu-program CRUD, karar girisi.\par
+\par
+\b Yetki modeli (genel):\b0\par
+- \b admin:\b0  sistem yonetimi, rol/enstitu/program/tum basvuru islemleri\par
+- \b komisyon uyesi:\b0  basvuru inceleme ve karar olusturma/guncelleme\par
+- \b standart kullanici:\b0  kendi profili ve kendi basvuru sureclerine erisim\par
+\par
+\b Guvenlik notlari:\b0\par
+- Sifreler bcrypt ile hashlenir, acik metin saklanmaz.\par
+- JWT payload icinde kullanici kimligi ve rol bilgisi tasinir.\par
+- DTO validation ile gecersiz tip/eksik alanlar erken asamada engellenir.\par
+\par
+\b 5) API Endpoint Katalogu\b0\par
+\par
+\b 5.1 Auth (/auth)\b0\par
+{\f1 POST /auth/login}\par
+{\f1 POST /auth/register}\par
+{\f1 POST /auth/change-password}\par
+{\f1 POST /auth/send-verification-code}\par
+{\f1 POST /auth/verify-email}\par
+\par
+\b 5.2 Users (/users)\b0\par
+{\f1 POST /users}  (admin)\par
+{\f1 GET /users}\par
+{\f1 GET /users/me}\par
+{\f1 GET /users/:id}\par
+{\f1 PUT /users/:id}\par
+{\f1 POST /users/:id/reset-password}\par
+{\f1 DELETE /users/:id}\par
+\par
+\b 5.3 Roles (/roles)\b0\par
+{\f1 POST /roles}\par
+{\f1 GET /roles}\par
+{\f1 GET /roles/:id}\par
+{\f1 PUT /roles/:id}  (admin)\par
+{\f1 DELETE /roles/:id}  (admin)\par
+\par
+\b 5.4 Institutes (/institutes)\b0\par
+{\f1 POST /institutes}  (admin)\par
+{\f1 GET /institutes}  (admin)\par
+{\f1 GET /institutes/:id}  (admin)\par
+{\f1 PUT /institutes/:id}  (admin)\par
+{\f1 DELETE /institutes/:id}  (admin)\par
+\par
+\b 5.5 Programs (/programs)\b0\par
+{\f1 POST /programs}  (admin)\par
+{\f1 GET /programs}\par
+{\f1 GET /programs/:id}\par
+{\f1 PUT /programs/:id}  (admin)\par
+{\f1 DELETE /programs/:id}  (admin)\par
+\par
+\b 5.6 Applications (/applications)\b0\par
+{\f1 GET /applications/me}\par
+{\f1 POST /applications}\par
+{\f1 GET /applications}\par
+{\f1 GET /applications/:id}\par
+{\f1 PATCH /applications/:id}\par
+{\f1 DELETE /applications/:id}  (admin)\par
+\par
+\b 5.7 Documents (/upload)\b0\par
+{\f1 POST /upload/documents}\par
+Beklenen dosyalar: diploma, transcript, ydt\par
+\par
+\b 5.8 Desicions (/desicions)\b0\par
+{\f1 POST /desicions}  (komisyon uyesi)\par
+{\f1 GET /desicions/:id}\par
+{\f1 PUT /desicions/:id}\par
+{\f1 DELETE /desicions/:id}  (admin)\par
+\par
+\b 5.9 Kisa endpoint kullanim senaryolari\b0\par
+\b Senaryo A - Aday basvurusu:\b0\par
+1) {\f1 POST /auth/register} -> kullanici olustur\par
+2) {\f1 POST /auth/login} -> JWT al\par
+3) {\f1 POST /upload/documents} -> diploma/transkript/ydt yukle\par
+4) {\f1 POST /applications} -> dosya pathleri ve programId ile basvuru olustur\par
+\par
+\b Senaryo B - Komisyon karari:\b0\par
+1) Komisyon uyesi login olur\par
+2) {\f1 GET /applications} ile basvurulari gorur\par
+3) {\f1 POST /desicions} ile ilgili basvuruya karar kaydi girer\par
+\par
+\b 6) Veritabani Model Ozetleri\b0\par
+\b public schema:\b0\par
+- users\par
+\par
+\b belek_graduate_admission schema:\b0\par
+- roles\par
+- institutes\par
+- programs\par
+- applications\par
+- desicions\par
+\par
+Iliski ozeti:\par
+- users.role -> roles.name\par
+- programs.instituteId -> institutes.id\par
+- programs.created_by -> users.id\par
+- applications.userId -> users.id\par
+- applications.programId -> programs.id\par
+- desicions.applicationId -> applications.id\par
+- desicions.commissionerId -> users.id\par
+\par
+\b Audit alanlari:\b0\par
+Bir cok tabloda \b created\_at, updated\_at, updated\_by, created\_by\b0 alanlari bulunur.\par
+Bu alanlar operasyonel izlenebilirlik ve denetim acisindan kritik onemdedir.\par
+\par
+\b 7) Operasyonel Notlar\b0\par
+- \b synchronize:false\b0 oldugu icin DDL migration otomatik calismaz; tablo/kolonlar DB tarafinda mevcut olmalidir.\par
+- Users kaydinda \b created_by\b0 degeri policy geregi SQL subquery ile set edilmektedir.\par
+- Ortam degiskenleri: DATABASE_URL, JWT_SECRET, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD vb.\par
+\par
+\b Hata yonetimi ve izleme:\b0\par
+- API, validation ve yetki hatalarinda uygun HTTP kodlari doner (400/401/403/404).\par
+- DB kolon/iliski uyumsuzluklari TypeORM query hatalari ile tespit edilir.\par
+- Loglar uzerinden endpoint bazli sorun analizi yapilabilir.\par
+\par
+\b 8) Gelistirme Komutlari\b0\par
+{\f1 npm run start:dev}\par
+{\f1 npm run build}\par
+{\f1 npm run test}\par
+{\f1 npm run lint}\par
+\par
+\b 9) Gelecek Gelistirme Onerileri\b0\par
+- Swagger/OpenAPI entegrasyonu ile otomatik API dokumani\par
+- Merkezi exception filter ve request logging iyilestirmeleri\par
+- E2E test kapsaminin arttirilmasi (ozellikle auth + applications akislari)\par
+- Rol matrisinin merkezi policy yapisina tasinmasi\par
+- CI pipeline'da lint + test + build zorunlulugu\par
+\par
+\b Sonuc\b0\par
+Bu backend, lisansustu kabul surecinin temel ihtiyaclarini kapsayan, moduler ve gelistirilebilir bir altyapi sunar.\par
+Yetki kontrollu is akislar, dosya yonetimi ve karar mekanizmasi tek bir servis katmaninda toplanarak kurumsal surec yonetimine uygun bir API ortaya cikarir.\par
+\par
+\b Dokuman sonu.\b0\par
+}

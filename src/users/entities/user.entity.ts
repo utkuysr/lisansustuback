@@ -1,17 +1,19 @@
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn, JoinColumn } from "typeorm";
-import { Role } from "src/roles/entities/role.entity";
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn, JoinColumn } from 'typeorm';
+import { Exclude } from 'class-transformer';
+import { Role } from 'src/roles/entities/role.entity';
 
-@Entity({name: 'users'})
+@Entity({ name: 'users', schema: 'public' })
 export class User {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column({ length: 50 })
+    @Column({ length: 150, nullable: true })
     username: string;
 
-    @Column({ length: 254 })
+    @Column({ length: 254, unique: true })
     email: string;
 
+    @Exclude()
     @Column({ name: 'password_hash', length: 255 })
     passwordHash: string;
 
@@ -51,19 +53,16 @@ export class User {
     @Column({ name: 'email_verified_at', type: 'timestamp', nullable: true })
     emailVerifiedAt: Date;
 
-    @Column({ name: 'password_reset_expires', type: 'timestamp', nullable: true })
-    passwordResetExpires: Date;
-
     @Column({ name: 'language_code', length: 5, nullable: true })
     languageCode: string;
 
-    @Column({ name: 'verification_code', length: 10, nullable: true })
-    verificationCode: string;
+    @Column({ length: 255, nullable: true })
+    faculty: string;
 
-    @Column({ name: 'verification_code_expires_at', type: 'timestamp', nullable: true })
-    verificationCodeExpiresAt: Date;
+    @Column({ length: 255, nullable: true })
+    department: string;
 
     @ManyToOne(() => Role, (role) => role.users, { nullable: false, eager: true })
-    @JoinColumn({ name: 'roleId' })
+    @JoinColumn({ name: 'role', referencedColumnName: 'name' })
     role: Role;
 }

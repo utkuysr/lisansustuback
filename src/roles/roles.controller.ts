@@ -4,16 +4,17 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { Role } from './entities/role.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UserRole } from 'src/common/constants/roles.constants';
 
 @Controller('roles')
+@UseGuards(JwtAuthGuard)
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
   create(@Body() createRoleDto: CreateRoleDto, @Request() req): Promise<Role> {
-    if (req.user.role !== 'admin') {
-      throw new ForbiddenException('Only admin users can create roles');
+    if (req.user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Sadece admin rol oluşturabilir.');
     }
     return this.rolesService.create(createRoleDto);
   }
@@ -29,23 +30,21 @@ export class RolesController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard)
   update(
     @Param('id') id: string,
     @Body() updateRoleDto: UpdateRoleDto,
     @Request() req,
   ): Promise<Role> {
-    if (req.user.role !== 'admin') {
-      throw new ForbiddenException('Only admin users can update roles');
+    if (req.user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Sadece admin rol güncelleyebilir.');
     }
     return this.rolesService.update(+id, updateRoleDto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string, @Request() req): Promise<void> {
-    if (req.user.role !== 'admin') {
-      throw new ForbiddenException('Only admin users can delete roles');
+    if (req.user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Sadece admin rol silebilir.');
     }
     return this.rolesService.remove(+id);
   }
