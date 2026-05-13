@@ -2,7 +2,7 @@ import { Program } from 'src/programs/entities/program.entity';
 import { User } from 'src/users/entities/user.entity';
 import { University } from 'src/universities/entities/university.entity';
 import { Department } from 'src/departments/entities/department.entity';
-import { Column, DeleteDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Decision } from 'src/decision/entities/decision.entity';
 import { ApplicationDocument } from 'src/documents/entities/application-document.entity';
 
@@ -10,10 +10,21 @@ export enum ApplicationStatus {
     DRAFT = 'draft',
     SUBMITTED = 'submitted',
     UNDER_REVIEW = 'under_review',
+    INTERVIEW_REQUIRED = 'interview_required',
     ACCEPTED = 'accepted',
     REJECTED = 'rejected',
     WAITLISTED = 'waitlisted',
 }
+
+export const VALID_STATUS_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
+    [ApplicationStatus.DRAFT]: [ApplicationStatus.SUBMITTED],
+    [ApplicationStatus.SUBMITTED]: [ApplicationStatus.UNDER_REVIEW],
+    [ApplicationStatus.UNDER_REVIEW]: [ApplicationStatus.INTERVIEW_REQUIRED, ApplicationStatus.ACCEPTED, ApplicationStatus.REJECTED, ApplicationStatus.WAITLISTED],
+    [ApplicationStatus.INTERVIEW_REQUIRED]: [ApplicationStatus.ACCEPTED, ApplicationStatus.REJECTED, ApplicationStatus.WAITLISTED],
+    [ApplicationStatus.ACCEPTED]: [],
+    [ApplicationStatus.REJECTED]: [],
+    [ApplicationStatus.WAITLISTED]: [ApplicationStatus.ACCEPTED, ApplicationStatus.REJECTED],
+};
 
 @Entity({ name: 'applications', schema: 'belek_graduate_admission' })
 export class Application {
@@ -27,7 +38,28 @@ export class Application {
     status: ApplicationStatus;
 
     @Column({ type: 'float', nullable: true })
-    GradePointAverage: number;
+    GradePointAverage?: number;
+
+    @Column({ name: 'gpa_scale', length: 5, default: '4.0' })
+    gpaScale: string;
+
+    @Column({ name: 'ales_score', type: 'float', nullable: true })
+    alesScore?: number;
+
+    @Column({ name: 'yds_score', type: 'float', nullable: true })
+    ydsScore?: number;
+
+    @Column({ name: 'degree_type', length: 30, nullable: true })
+    degreeType?: string;
+
+    @Column({ name: 'graduate_university', length: 255, nullable: true })
+    graduateUniversity?: string;
+
+    @Column({ name: 'graduate_faculty', length: 255, nullable: true })
+    graduateFaculty?: string;
+
+    @Column({ name: 'graduate_department', length: 255, nullable: true })
+    graduateDepartment?: string;
 
     @ManyToOne(() => User)
     @JoinColumn({ name: 'userId' })
@@ -51,8 +83,8 @@ export class Application {
     @OneToMany(() => ApplicationDocument, (doc) => doc.application)
     documents?: ApplicationDocument[];
 
-    @Column({ name: 'created_at', type: 'timestamp', nullable: true })
-    createdAt?: Date;
+    @CreateDateColumn({ name: 'created_at' })
+    createdAt: Date;
 
     @Column({ name: 'updated_at', type: 'timestamp', nullable: true })
     updatedAt?: Date;

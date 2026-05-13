@@ -35,6 +35,7 @@ export class AuthService {
         if (!isPasswordValid) throw new UnauthorizedException('E-posta veya şifre hatalı.');
 
         if (!user.isActive) throw new UnauthorizedException('Hesabınız devre dışı bırakılmıştır.');
+        if (!user.isEmailVerified) throw new UnauthorizedException('E-posta adresiniz henüz doğrulanmamıştır. Lütfen gelen kutunuzu kontrol edin.');
 
         const freshUser = await this.usersService.findOne(user.id.toString());
         const roleName = freshUser.role?.name ?? freshUser.userType;

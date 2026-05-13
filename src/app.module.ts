@@ -20,6 +20,9 @@ import { DepartmentsModule } from './departments/departments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { StatsModule } from './stats/stats.module';
 import { InstituteModule } from './institute/institute.module';
+import { InterviewsModule } from './interviews/interviews.module';
+import { InstituteManagersModule } from './institute-managers/institute-managers.module';
+import { RankingsModule } from './rankings/rankings.module';
 import { DataSource } from 'typeorm';
 
 @Module({
@@ -62,12 +65,13 @@ import { DataSource } from 'typeorm';
     NotificationsModule,
     StatsModule,
     InstituteModule,
+    InterviewsModule,
+    InstituteManagersModule,
+    RankingsModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'src', 'documents', 'Uploads'),
       serveRoot: '/documents',
-      serveStaticOptions: {
-        index: false,
-      },
+      serveStaticOptions: { index: false },
     }),
   ],
   controllers: [AppController],

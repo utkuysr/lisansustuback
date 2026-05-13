@@ -6,6 +6,7 @@ import { User } from './entities/user.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
 import { UserResponseDto } from './dto/user-response.dto';
+import { UserRole } from '../common/constants/roles.constants';
 
 @Controller('users')
 export class UsersController {
@@ -15,17 +16,17 @@ export class UsersController {
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@Body() createUserDto: CreateUserDto, @Request() req): Promise<User> {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Sadece admin kullanıcı oluşturabilir.');
     }
-    return this.usersService.create(createUserDto, { allowRoleOverride: true });
+    return this.usersService.create(createUserDto, { allowRoleOverride: true, createdById: req.user.sub });
   }
 
-  // Tüm kullanıcıları listele (Admin)
+  // Tüm kullanıcıları listele (Admin: hepsi | InstituteManager: sadece görüntüleme için)
   @Get()
   @UseGuards(JwtAuthGuard)
   findAll(@Request() req): Promise<User[]> {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.INSTITUTE_MANAGER) {
       throw new ForbiddenException('Sadece admin kullanıcıları listeleyebilir.');
     }
     return this.usersService.findAll();
@@ -44,7 +45,7 @@ export class UsersController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string, @Request() req): Promise<User> {
-    if (req.user.role !== 'admin' && req.user.sub !== +id) {
+    if (req.user.role !== UserRole.ADMIN && req.user.sub !== +id) {
       throw new ForbiddenException('Sadece kendi profilinizi görüntüleyebilirsiniz.');
     }
     return this.usersService.findOne(id);
@@ -59,10 +60,10 @@ export class UsersController {
     @Request() req,
   ): Promise<User> {
     const userId = +id;
-    if (req.user.role !== 'admin' && req.user.sub !== userId) {
+    if (req.user.role !== UserRole.ADMIN && req.user.sub !== userId) {
       throw new ForbiddenException('Sadece kendi profilinizi güncelleyebilirsiniz (veya admin olmalısınız).');
     }
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== UserRole.ADMIN) {
       if (updateUserDto.roleId !== undefined) {
         throw new ForbiddenException('Sadece admin kullanıcı rolünü güncelleyebilir.');
       }
@@ -86,7 +87,7 @@ export class UsersController {
     @Request() req,
   ) {
     const userId = +id;
-    if (req.user.role !== 'admin' && req.user.sub !== userId) {
+    if (req.user.role !== UserRole.ADMIN && req.user.sub !== userId) {
       throw new ForbiddenException('Sadece kendi şifrenizi sıfırlayabilirsiniz (veya admin olmalısınız).');
     }
     return this.usersService.resetPassword(id, body.newPassword);
@@ -97,7 +98,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string, @Request() req): Promise<void> {
     const userId = +id;
-    if (req.user.role !== 'admin' && req.user.sub !== userId) {
+    if (req.user.role !== UserRole.ADMIN && req.user.sub !== userId) {
       throw new ForbiddenException('Sadece kendi hesabınızı silebilirsiniz (veya admin olmalısınız).');
     }
     return this.usersService.remove(id);

@@ -37,25 +37,30 @@ export class EmailService {
     // Database'e kaydet
     await this.usersService.setVerificationCode(email, code, expiresAt);
 
-    // Email gönder
     const mailOptions = {
       from: process.env.SMTP_FROM || 'noreply@example.com',
       to: email,
-      subject: 'Email Verification Code',
+      subject: 'E-posta Doğrulama Kodu — LBS Portal',
       html: `
-        <h2>Email Verification</h2>
-        <p>Your verification code is:</p>
-        <h1 style="color: #007bff; font-weight: bold;">${code}</h1>
-        <p>This code will expire in 15 minutes.</p>
-        <p>If you didn't request this code, please ignore this email.</p>
+        <div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#f9fafb;border-radius:12px;">
+          <h2 style="color:#1a3a6b;margin-bottom:8px;">E-posta Doğrulama</h2>
+          <p style="color:#374151;">Doğrulama kodunuz aşağıdadır:</p>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px;text-align:center;margin:20px 0;">
+            <span style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#1a3a6b;">${code}</span>
+          </div>
+          <p style="color:#6b7280;font-size:14px;">Bu kod <strong>15 dakika</strong> geçerlidir.</p>
+          <p style="color:#6b7280;font-size:13px;">Bu kodu siz talep etmediyseniz bu e-postayı dikkate almayınız.</p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;"/>
+          <p style="color:#9ca3af;font-size:12px;">LBS Portal — Lisansüstü Başvuru Sistemi</p>
+        </div>
       `,
     };
 
     try {
       await this.transporter.sendMail(mailOptions);
-      return { message: 'Verification code sent to your email' };
+      return { message: 'Doğrulama kodu e-posta adresinize gönderildi.' };
     } catch (error) {
-      throw new BadRequestException('Failed to send verification code');
+      throw new BadRequestException('Doğrulama kodu gönderilemedi. Lütfen daha sonra tekrar deneyin.');
     }
   }
 
@@ -99,20 +104,20 @@ export class EmailService {
     const userAuth = await this.usersService.findUserAuthByEmail(email);
 
     if (!userAuth?.passwordResetToken || !userAuth?.passwordResetExpires) {
-      throw new BadRequestException('No verification code found for this email');
+      throw new BadRequestException('Bu e-posta için geçerli bir doğrulama kodu bulunamadı.');
     }
 
     if (userAuth.passwordResetToken !== code) {
-      throw new BadRequestException('Invalid verification code');
+      throw new BadRequestException('Doğrulama kodu hatalı.');
     }
 
     const now = new Date();
     if (now > userAuth.passwordResetExpires) {
-      throw new BadRequestException('Verification code has expired');
+      throw new BadRequestException('Doğrulama kodunun süresi dolmuş. Lütfen yeni bir kod isteyin.');
     }
 
     await this.usersService.markEmailAsVerified(email);
 
-    return { message: 'Email verified successfully' };
+    return { message: 'E-posta adresiniz başarıyla doğrulandı.' };
   }
 }

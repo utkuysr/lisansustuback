@@ -11,8 +11,6 @@ import {
   ForbiddenException,
   Query,
   ParseIntPipe,
-  ParseIntPipe as OptionalParseIntPipe,
-  Optional,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
@@ -39,31 +37,21 @@ export class ApplicationsController {
   @Get('archived')
   @ApiOperation({ summary: 'Arşivlenmiş başvurular (Admin)' })
   async findArchived(@Request() req, @Query() pagination: PaginationDto) {
-    if (req.user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Yalnızca admin arşivi görüntüleyebilir.');
-    }
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Yalnızca admin arşivi görüntüleyebilir.');
     return this.applicationsService.findArchived(pagination.page, pagination.limit);
   }
 
   @Post(':id/archive')
   @ApiOperation({ summary: 'Başvuruyu arşivle (Admin)' })
-  async archive(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ArchiveApplicationDto,
-    @Request() req,
-  ) {
-    if (req.user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Yalnızca admin arşivleyebilir.');
-    }
+  async archive(@Param('id', ParseIntPipe) id: number, @Body() dto: ArchiveApplicationDto, @Request() req) {
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Yalnızca admin arşivleyebilir.');
     return this.applicationsService.archive(id, req.user.sub, dto.reason);
   }
 
   @Post(':id/restore')
   @ApiOperation({ summary: 'Arşivden geri al (Admin)' })
   async restore(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    if (req.user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Yalnızca admin arşivden geri alabilir.');
-    }
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Yalnızca admin arşivden geri alabilir.');
     return this.applicationsService.restore(id);
   }
 
@@ -81,10 +69,16 @@ export class ApplicationsController {
   @Get()
   @ApiOperation({ summary: 'Başvuruları listele' })
   @ApiQuery({ name: 'programId', required: false, type: Number })
-  async findAll(@Request() req, @Query() pagination: PaginationDto, @Query('programId') programId?: string) {
+  @ApiQuery({ name: 'status', required: false, type: String })
+  async findAll(
+    @Request() req,
+    @Query() pagination: PaginationDto,
+    @Query('programId') programId?: string,
+    @Query('status') status?: string,
+  ) {
     const pid = programId ? +programId : undefined;
     if (req.user.role === UserRole.ADMIN) {
-      return this.applicationsService.findAll(pagination.page, pagination.limit);
+      return this.applicationsService.findAll(pagination.page, pagination.limit, { programId: pid, status });
     }
     if (req.user.role === UserRole.KOMISYON_UYESI) {
       return this.applicationsService.findForCommissioner(req.user.sub, pagination.page, pagination.limit, pid);
@@ -96,6 +90,9 @@ export class ApplicationsController {
   @ApiOperation({ summary: 'Başvuru detayı' })
   async findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const application = await this.applicationsService.findOne(id);
+    if (req.user.role === UserRole.ADMIN || req.user.role === UserRole.INSTITUTE_MANAGER) {
+      return application;
+    }
     if (req.user.role === UserRole.KOMISYON_UYESI) {
       await this.applicationsService.assertCommissionerAssignedToProgram({
         commissionerId: req.user.sub,
@@ -103,7 +100,7 @@ export class ApplicationsController {
       });
       return application;
     }
-    if (req.user.role !== UserRole.ADMIN && application.user.id !== req.user.sub) {
+    if (application.user.id !== req.user.sub) {
       throw new ForbiddenException('Bu başvuruya erişim yetkiniz yok.');
     }
     return application;
@@ -111,24 +108,37 @@ export class ApplicationsController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Başvuru güncelle' })
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateApplicationDto: UpdateApplicationDto,
-    @Request() req,
-  ) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() updateApplicationDto: UpdateApplicationDto, @Request() req) {
     const application = await this.applicationsService.findOne(id);
+
     if (req.user.role !== UserRole.ADMIN && application.user.id !== req.user.sub) {
       throw new ForbiddenException('Bu başvuruyu güncelleme yetkiniz yok.');
     }
-    return this.applicationsService.update(id, updateApplicationDto);
+
+    if (req.user.role === UserRole.STUDENT) {
+      // Öğrenci yalnızca draft/submitted durumda düzenleyebilir
+      const editableStatuses = ['draft', 'submitted'];
+      if (!editableStatuses.includes(application.status)) {
+        throw new ForbiddenException('Değerlendirme sürecine giren başvurular düzenlenemez.');
+      }
+      // Öğrenci status değiştiremez (sadece submitted'a geçiş - ApplyPage akışı için)
+      if (updateApplicationDto.status && updateApplicationDto.status !== 'submitted') {
+        throw new ForbiddenException('Öğrenciler başvuru durumunu değiştiremez.');
+      }
+    }
+
+    return this.applicationsService.update(id, updateApplicationDto, req.user.role);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Başvuruyu kalıcı sil (Admin)' })
+  @ApiOperation({ summary: 'Başvuruyu sil' })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    if (req.user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Sadece admin silebilir.');
+    if (req.user.role === UserRole.ADMIN) {
+      return this.applicationsService.remove(id);
     }
-    return this.applicationsService.remove(id);
+    if (req.user.role === UserRole.STUDENT) {
+      return this.applicationsService.cancel(id, req.user.sub);
+    }
+    throw new ForbiddenException('Bu işlem için yetkiniz yok.');
   }
 }

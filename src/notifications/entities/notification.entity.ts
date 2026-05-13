@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { User } from 'src/users/entities/user.entity';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 export enum NotificationType {
   APPLICATION_SUBMITTED = 'application_submitted',
@@ -6,7 +7,9 @@ export enum NotificationType {
   APPLICATION_ACCEPTED = 'application_accepted',
   APPLICATION_REJECTED = 'application_rejected',
   APPLICATION_WAITLISTED = 'application_waitlisted',
+  APPLICATION_INTERVIEW_REQUIRED = 'application_interview_required',
   DECISION_MADE = 'decision_made',
+  INTERVIEW_SCHEDULED = 'interview_scheduled',
   GENERAL = 'general',
 }
 
@@ -15,7 +18,11 @@ export class Notification {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'user_id' })
+  @ManyToOne(() => User, { onDelete: 'CASCADE', nullable: false })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
+
+  @Column({ name: 'user_id', insert: false, update: false })
   userId: number;
 
   @Column({ length: 60, default: NotificationType.GENERAL })
@@ -31,7 +38,7 @@ export class Notification {
   isRead: boolean;
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any>;
+  metadata?: Record<string, any>;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

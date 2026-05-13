@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, DeleteDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { University } from 'src/universities/entities/university.entity';
+import { Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'faculties', schema: 'belek_graduate_admission' })
 export class Faculty {
@@ -9,7 +10,11 @@ export class Faculty {
   name: string;
 
   @Column({ length: 500, nullable: true })
-  description: string;
+  description?: string;
+
+  @ManyToOne(() => University, { nullable: true, eager: true })
+  @JoinColumn({ name: 'university_id' })
+  university?: University;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

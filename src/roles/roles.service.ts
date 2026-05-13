@@ -24,7 +24,7 @@ export class RolesService {
   async findOne(id: number): Promise<Role> {
     const role = await this.roleRepository.findOne({ where: { id } });
     if (!role) {
-      throw new NotFoundException(`Role with ID ${id} not found`);
+      throw new NotFoundException(`${id} ID'li rol bulunamadı.`);
     }
     return role;
   }
@@ -32,7 +32,7 @@ export class RolesService {
   async findByName(name: string): Promise<Role> {
     const role = await this.roleRepository.findOne({ where: { name } });
     if (!role) {
-      throw new NotFoundException(`Role ${name} not found`);
+      throw new NotFoundException(`"${name}" adlı rol bulunamadı.`);
     }
     return role;
   }

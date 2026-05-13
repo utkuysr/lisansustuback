@@ -7,11 +7,13 @@ import { Application } from 'src/applications/entities/application.entity';
 import { User } from 'src/users/entities/user.entity';
 import { ProgramCommissioner } from 'src/programs/entities/program-commissioner.entity';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { RankingsModule } from 'src/rankings/rankings.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Decision, User, Application, ProgramCommissioner]),
         NotificationsModule,
+        RankingsModule,
     ],
     controllers: [DecisionController],
     providers: [DecisionService],

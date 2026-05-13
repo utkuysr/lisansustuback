@@ -21,11 +21,11 @@ export class UsersService {
 
   async create(
     createUserDto: CreateUserDto,
-    options?: { allowRoleOverride?: boolean },
+    options?: { allowRoleOverride?: boolean; createdById?: number },
   ): Promise<User> {
     const existingEmail = await this.userRepository.findOneBy({ email: createUserDto.email });
     if (existingEmail) {
-      throw new BadRequestException('Bu Email Kullanılıyor.');
+      throw new BadRequestException('Bu e-posta adresi zaten kullanılıyor.');
     }
 
     const policy = validatePasswordPolicy(createUserDto.password);
@@ -39,36 +39,28 @@ export class UsersService {
       role = await this.rolesService.findOne(createUserDto.roleId);
     }
 
-    const insertResult = await this.userRepository
-      .createQueryBuilder()
-      .insert()
-      .into(User)
-      .values({
-        email: createUserDto.email,
-        passwordHash: hashedPassword,
-        firstName: createUserDto.firstName,
-        lastName: createUserDto.lastName,
-        username: createUserDto.username,
-        userType: createUserDto.userType || 'student',
-        isActive: true,
-        isEmailVerified: false,
-        role,
-        faculty: createUserDto.faculty,
-        department: createUserDto.department,
-        createdBy: () =>
-          '(SELECT user_id FROM public.user_schemas WHERE schema_name = current_user)',
-      } as any)
-      .returning('id')
-      .execute();
+    const newUser = this.userRepository.create({
+      email: createUserDto.email,
+      passwordHash: hashedPassword,
+      firstName: createUserDto.firstName,
+      lastName: createUserDto.lastName,
+      username: createUserDto.username,
+      userType: role.name,
+      isActive: true,
+      // Admin tarafından oluşturulan hesaplar otomatik doğrulanmış sayılır
+      isEmailVerified: !!options?.createdById,
+      emailVerifiedAt: options?.createdById ? new Date() : null,
+      role,
+      faculty: createUserDto.faculty,
+      department: createUserDto.department,
+      createdBy: options?.createdById ?? null,
+    } as any);
 
-    const insertedId = insertResult.identifiers?.[0]?.id;
-    if (!insertedId) {
-      throw new BadRequestException('Kullanıcı kaydı oluşturulamadı.');
-    }
+    const saved = await this.userRepository.save(newUser) as unknown as User;
 
     await this.userAuthRepository.save(
       this.userAuthRepository.create({
-        userId: insertedId,
+        userId: saved.id,
         passwordHash: hashedPassword,
         mustChangePassword: false,
         isStaff: false,
@@ -77,7 +69,7 @@ export class UsersService {
       }),
     );
 
-    return this.findOne(String(insertedId));
+    return this.findOne(String(saved.id));
   }
 
   findAll(): Promise<User[]> {
@@ -90,7 +82,7 @@ export class UsersService {
       relations: ['role'],
     });
     if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+      throw new NotFoundException('Kullanıcı bulunamadı.');
     }
     return user;
   }
@@ -101,7 +93,7 @@ export class UsersService {
       relations: ['role'],
     });
     if (!user) {
-      throw new NotFoundException(`User with email ${email} not found`);
+      throw new NotFoundException('Bu e-posta adresine ait kullanıcı bulunamadı.');
     }
     return user;
   }
@@ -144,7 +136,7 @@ export class UsersService {
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await this.updatePasswordHash(id, hashedPassword);
-    return { message: 'Password reset successfully' };
+    return { message: 'Şifre başarıyla sıfırlandı.' };
   }
 
   async setVerificationCode(email: string, code: string, expiresAt: Date): Promise<void> {

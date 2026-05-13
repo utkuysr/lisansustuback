@@ -10,11 +10,13 @@ import { Department } from 'src/departments/entities/department.entity';
 import { ApplicationDocument } from 'src/documents/entities/application-document.entity';
 import { ProgramCommissioner } from 'src/programs/entities/program-commissioner.entity';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Application, User, Program, University, Department, ApplicationDocument, ProgramCommissioner]),
     NotificationsModule,
+    AuthModule,
   ],
   controllers: [ApplicationsController],
   providers: [ApplicationsService],
