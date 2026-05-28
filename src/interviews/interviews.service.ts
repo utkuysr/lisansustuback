@@ -1,6 +1,6 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { Interview, InterviewStatus } from './entities/interview.entity';
 import { Application, ApplicationStatus } from 'src/applications/entities/application.entity';
 import { User } from 'src/users/entities/user.entity';
@@ -135,7 +135,24 @@ export class InterviewsService {
 
   async remove(id: number): Promise<{ message: string }> {
     const interview = await this.findOne(id);
-    await this.interviewRepo.remove(interview);
-    return { message: 'Mülakat silindi.' };
+    await this.interviewRepo.softDelete({ id: interview.id });
+    return { message: 'Mülakat arşivlendi.' };
+  }
+
+  async restore(id: number): Promise<{ message: string }> {
+    const interview = await this.interviewRepo.findOne({ where: { id }, withDeleted: true });
+    if (!interview) throw new NotFoundException('Mülakat bulunamadı.');
+    if (!interview.deletedAt) throw new BadRequestException('Bu mülakat arşivlenmemiş.');
+    await this.interviewRepo.restore({ id });
+    return { message: 'Mülakat geri yüklendi.' };
+  }
+
+  async findAllArchived(): Promise<Interview[]> {
+    return this.interviewRepo.find({
+      where: { deletedAt: Not(IsNull()) } as any,
+      withDeleted: true,
+      relations: ['application', 'application.program', 'application.user', 'interviewer'],
+      order: { deletedAt: 'DESC' },
+    });
   }
 }

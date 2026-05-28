@@ -1,6 +1,6 @@
 import {
     Controller, Post, Body, Req, Param, Get, Put, Delete,
-    UseGuards, ForbiddenException, ParseIntPipe,
+    UseGuards, ForbiddenException, ParseIntPipe, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { DecisionService } from './decision.service';
@@ -81,11 +81,30 @@ export class DecisionController {
     }
 
     @Delete(':id')
-    @ApiOperation({ summary: 'Kararı sil (Admin)' })
+    @ApiOperation({ summary: 'Kararı arşivle (Admin)' })
     async remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
         if (req.user.role !== UserRole.ADMIN) {
-            throw new ForbiddenException('Yalnızca admin karar silebilir.');
+            throw new ForbiddenException('Yalnızca admin karar arşivleyebilir.');
         }
         return this.decisionService.remove(id);
+    }
+
+    @Post(':id/restore')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Arşivlenen kararı geri yükle (Admin)' })
+    async restore(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+        if (req.user.role !== UserRole.ADMIN) {
+            throw new ForbiddenException('Yalnızca admin karar geri yükleyebilir.');
+        }
+        return this.decisionService.restore(id);
+    }
+
+    @Get('archived/list')
+    @ApiOperation({ summary: 'Arşivlenen kararları listele (Admin)' })
+    async findArchived(@Req() req: any) {
+        if (req.user.role !== UserRole.ADMIN) {
+            throw new ForbiddenException('Bu kaynağa erişim yetkiniz yok.');
+        }
+        return this.decisionService.findAllArchived();
     }
 }

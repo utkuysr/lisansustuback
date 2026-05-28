@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -44,7 +44,6 @@ export class UsersService {
       passwordHash: hashedPassword,
       firstName: createUserDto.firstName,
       lastName: createUserDto.lastName,
-      username: createUserDto.username,
       userType: role.name,
       isActive: true,
       // Admin tarafından oluşturulan hesaplar otomatik doğrulanmış sayılır
@@ -72,8 +71,8 @@ export class UsersService {
     return this.findOne(String(saved.id));
   }
 
-  findAll(): Promise<User[]> {
-    return this.userRepository.find({ relations: ['role'] });
+  findAll(withArchived = false): Promise<User[]> {
+    return this.userRepository.find({ relations: ['role'], withDeleted: withArchived });
   }
 
   async findOne(id: string): Promise<User> {
@@ -176,7 +175,14 @@ export class UsersService {
   }
 
   async remove(id: string): Promise<void> {
-    const user = await this.findOne(id);
-    await this.userRepository.remove(user);
+    await this.findOne(id);
+    await this.userRepository.softDelete({ id: +id });
+  }
+
+  async restore(id: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: +id }, withDeleted: true });
+    if (!user) throw new NotFoundException('Kullanıcı bulunamadı.');
+    if (!user.deletedAt) throw new BadRequestException('Bu kullanıcı arşivlenmemiş.');
+    await this.userRepository.restore({ id: +id });
   }
 }

@@ -11,6 +11,8 @@ import {
   ForbiddenException,
   Query,
   ParseIntPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { ProgramsService } from './programs.service';
@@ -51,6 +53,14 @@ export class ProgramsController {
       }
     }
     return this.programsService.create(createDto, req.user);
+  }
+
+  @Get('archived')
+  @ApiOperation({ summary: 'Arşivlenen programları listele (Admin / Enstitü Yöneticisi)' })
+  async findArchived(@Request() req: any, @Query('instituteId') instituteId?: string) {
+    if (!this.isAdminOrManager(req.user.role)) throw new ForbiddenException();
+    const filters = instituteId ? { instituteId: +instituteId } : undefined;
+    return this.programsService.findArchived(filters);
   }
 
   @Get()
@@ -106,7 +116,7 @@ export class ProgramsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Program sil (Admin / Enstitü Yöneticisi)' })
+  @ApiOperation({ summary: 'Program arşivle (Admin / Enstitü Yöneticisi)' })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
     if (!this.isAdminOrManager(req.user.role)) throw new ForbiddenException();
     if (req.user.role === UserRole.INSTITUTE_MANAGER) {
@@ -116,6 +126,20 @@ export class ProgramsController {
       if (progInstId !== myInstId) throw new ForbiddenException('Bu program kendi enstitünüze ait değil.');
     }
     return this.programsService.remove(id);
+  }
+
+  @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Arşivlenen programı geri yükle (Admin / Enstitü Yöneticisi)' })
+  async restore(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    if (!this.isAdminOrManager(req.user.role)) throw new ForbiddenException();
+    if (req.user.role === UserRole.INSTITUTE_MANAGER) {
+      const myInstId = await this.getManagerInstituteId(req.user.sub);
+      const program = await this.programsService.findOneAny(id);
+      const progInstId = (program.institute as any)?.id ?? (program.department as any)?.institute?.id;
+      if (progInstId !== myInstId) throw new ForbiddenException('Bu program kendi enstitünüze ait değil.');
+    }
+    return this.programsService.restore(id);
   }
 
   @Get(':id/commissioners')

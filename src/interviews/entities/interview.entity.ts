@@ -1,6 +1,6 @@
 import { Application } from 'src/applications/entities/application.entity';
 import { User } from 'src/users/entities/user.entity';
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 export enum InterviewStatus {
     SCHEDULED = 'scheduled',
@@ -51,4 +51,7 @@ export class Interview {
 
     @Column({ name: 'updated_by', type: 'int', nullable: true })
     updatedBy?: number;
+
+    @DeleteDateColumn({ name: 'deleted_at', nullable: true })
+    deletedAt?: Date;
 }

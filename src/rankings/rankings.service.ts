@@ -7,6 +7,7 @@ import { Program } from 'src/programs/entities/program.entity';
 import { Decision, DecisionStatus } from 'src/decision/entities/decision.entity';
 import { ProgramCommissioner } from 'src/programs/entities/program-commissioner.entity';
 import { InstituteManager } from 'src/institute-managers/entities/institute-manager.entity';
+import { Interview } from 'src/interviews/entities/interview.entity';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { NotificationType } from 'src/notifications/entities/notification.entity';
 import { UserRole } from 'src/common/constants/roles.constants';
@@ -27,6 +28,8 @@ export class RankingsService {
     private readonly programCommissionerRepo: Repository<ProgramCommissioner>,
     @InjectRepository(InstituteManager)
     private readonly instituteManagerRepo: Repository<InstituteManager>,
+    @InjectRepository(Interview)
+    private readonly interviewRepo: Repository<Interview>,
     private readonly notificationsService: NotificationsService,
     private readonly emailService: EmailService,
   ) {}
@@ -115,7 +118,9 @@ export class RankingsService {
       scored.push({ entry, rejected: majorityRejected });
     }
 
-    const quota = program.Quota ?? 0;
+    const mainCount = (program as any).mainListCount ?? program.Quota ?? 0;
+    const backupCount = (program as any).backupListCount ?? 0;
+    const inviteCount = mainCount + backupCount;
     const nonRejected = scored
       .filter((s) => !s.rejected)
       .sort((a, b) => b.entry.totalScore - a.entry.totalScore);
@@ -127,7 +132,12 @@ export class RankingsService {
         ...nonRejected.map((s, i) => ({
           ...s.entry,
           rank: i + 1,
-          decision: i < quota ? ('accepted' as const) : ('rejected' as const),
+          decision:
+            i < mainCount
+              ? ('accepted' as const)
+              : i < inviteCount
+              ? ('waitlisted' as const)
+              : ('rejected' as const),
         })),
         ...rejected.map((s) => ({ ...s.entry, rank: -1, decision: 'rejected' as const })),
       ];
@@ -135,7 +145,7 @@ export class RankingsService {
       // Update application statuses and clear decision scores for interview candidates
       for (let i = 0; i < nonRejected.length; i++) {
         const appId = nonRejected[i].entry.applicationId;
-        if (i < quota) {
+        if (i < mainCount || (i >= mainCount && i < inviteCount)) {
           await this.appRepo.update(
             { id: appId },
             { status: ApplicationStatus.INTERVIEW_REQUIRED, updatedAt: new Date() },
@@ -195,7 +205,11 @@ export class RankingsService {
       ...nonRejected.map((s, i) => ({
         ...s.entry,
         rank: i + 1,
-        decision: i < quota ? ('accepted' as const) : ('waitlisted' as const),
+        decision: i < mainCount
+          ? ('accepted' as const)
+          : i < mainCount + backupCount
+          ? ('waitlisted' as const)
+          : ('rejected' as const),
       })),
       ...rejected.map((s) => ({ ...s.entry, rank: -1, decision: 'rejected' as const })),
     ];
@@ -373,7 +387,15 @@ export class RankingsService {
     ranking.approvedBy = { id: requesterId } as any;
     ranking.updatedAt = new Date();
 
-    return this.rankingRepo.save(ranking);
+    const saved = await this.rankingRepo.save(ranking);
+
+    // Deactivate the program so it no longer accepts new applications
+    const programId = (ranking.program as any)?.id;
+    if (programId) {
+      await this.programRepo.update({ id: programId }, { isActive: false } as any);
+    }
+
+    return saved;
   }
 
   // Triggered after all commissioners vote on under_review applications
@@ -421,6 +443,175 @@ export class RankingsService {
     if (allScored) {
       await this.calculateRanking(programId).catch(() => {});
     }
+  }
+
+  async updateInterviewScores(
+    rankingId: number,
+    entries: { applicationId: number; interviewScore: number }[],
+    requesterId: number,
+    requesterRole: string,
+  ): Promise<ProgramRanking> {
+    const ranking = await this.rankingRepo.findOne({
+      where: { id: rankingId },
+      relations: ['program'],
+    });
+    if (!ranking) throw new NotFoundException('Sıralama bulunamadı.');
+    if (ranking.status !== 'interview_phase')
+      throw new BadRequestException('Bu işlem yalnızca mülakat aşamasındaki sıralamalar için yapılabilir.');
+
+    await this.assertAccess((ranking.program as any)?.id, requesterId, requesterRole);
+
+    const program = await this.programRepo.findOneBy({ id: (ranking.program as any).id });
+    if (!program) throw new NotFoundException('Program bulunamadı.');
+
+    const gpaWeight = program.gpaWeight ?? 0;
+    const alesWeight = program.alesWeight ?? 0;
+    const ydsWeight = program.writtenExamWeight ?? 0;
+    const interviewWeight = program.interviewWeight ?? 0;
+    const totalWeight = gpaWeight + alesWeight + ydsWeight + interviewWeight;
+
+    const scoreMap = new Map(entries.map((e) => [e.applicationId, e.interviewScore]));
+
+    const updatedData: RankingEntry[] = (ranking.rankingData ?? []).map((entry) => {
+      const score = scoreMap.get(entry.applicationId);
+      if (score === undefined) return entry;
+      let totalScore: number;
+      if (totalWeight > 0) {
+        const normalizedGpa = ((entry.gpa ?? 0) / 4) * 100;
+        totalScore =
+          Math.round(
+            ((normalizedGpa * gpaWeight +
+              (entry.alesScore ?? 0) * alesWeight +
+              (entry.ydsScore ?? 0) * ydsWeight +
+              score * interviewWeight) /
+              totalWeight) *
+              100,
+          ) / 100;
+      } else {
+        totalScore = score;
+      }
+      return { ...entry, interviewScore: score, totalScore };
+    });
+
+    const mainCount = (program as any).mainListCount ?? program.Quota ?? 0;
+    const backupCount = (program as any).backupListCount ?? 0;
+
+    const interviewCandidates = updatedData
+      .filter((e) => e.decision !== 'rejected' || scoreMap.has(e.applicationId))
+      .filter((e) => scoreMap.has(e.applicationId))
+      .sort((a, b) => b.totalScore - a.totalScore);
+
+    const otherRejected = updatedData.filter((e) => !scoreMap.has(e.applicationId));
+
+    const finalData: RankingEntry[] = [
+      ...interviewCandidates.map((entry, i) => ({
+        ...entry,
+        rank: i + 1,
+        decision:
+          i < mainCount
+            ? ('accepted' as const)
+            : i < mainCount + backupCount
+            ? ('waitlisted' as const)
+            : ('rejected' as const),
+      })),
+      ...otherRejected.map((entry) => ({ ...entry, rank: -1, decision: 'rejected' as const })),
+    ];
+
+    ranking.rankingData = finalData;
+    ranking.status = 'pending_approval';
+    ranking.updatedAt = new Date();
+
+    return this.rankingRepo.save(ranking);
+  }
+
+  async scheduleInterviews(
+    rankingId: number,
+    dto: { scheduledAt: string; location: string; notes?: string },
+    requesterId: number,
+    requesterRole: string,
+  ): Promise<{ count: number }> {
+    const ranking = await this.rankingRepo.findOne({
+      where: { id: rankingId },
+      relations: ['program'],
+    });
+    if (!ranking) throw new NotFoundException('Sıralama bulunamadı.');
+    if (ranking.status !== 'interview_phase')
+      throw new BadRequestException('Bu işlem yalnızca mülakat aşamasındaki sıralamalar için yapılabilir.');
+
+    await this.assertAccess((ranking.program as any)?.id, requesterId, requesterRole);
+
+    // Invite both main list (accepted) and backup list (waitlisted) candidates
+    const inviteEntries = (ranking.rankingData ?? []).filter(
+      (e) => e.decision === 'accepted' || e.decision === 'waitlisted',
+    );
+    const scheduledAt = new Date(dto.scheduledAt);
+    let count = 0;
+
+    for (const entry of inviteEntries) {
+      // Use relation-based lookup to avoid issues with insert:false, update:false column
+      const existing = await this.interviewRepo.findOne({
+        where: { application: { id: entry.applicationId } } as any,
+      });
+
+      const app = await this.appRepo.findOne({
+        where: { id: entry.applicationId },
+        relations: ['user', 'program'],
+      });
+      if (!app) continue;
+
+      if (existing) {
+        existing.scheduledAt = scheduledAt;
+        existing.location = dto.location;
+        existing.notes = dto.notes;
+        existing.updatedAt = new Date();
+        existing.updatedBy = requesterId;
+        await this.interviewRepo.save(existing);
+      } else {
+        const interview = this.interviewRepo.create({
+          application: { id: entry.applicationId } as any,
+          scheduledAt,
+          location: dto.location,
+          notes: dto.notes,
+          createdBy: requesterId,
+        });
+        await this.interviewRepo.save(interview);
+      }
+
+      const userId = (app.user as any)?.id;
+      const programName = (app.program as any)?.name ?? '';
+      const userEmail = (app.user as any)?.email;
+      const userFirstName = (app.user as any)?.firstName;
+      const listType = entry.decision === 'accepted' ? 'Asil Liste' : 'Yedek Liste';
+
+      if (userId) {
+        await this.notificationsService
+          .create({
+            userId,
+            type: NotificationType.INTERVIEW_SCHEDULED,
+            title: 'Mülakatınız planlandı',
+            message: `"${programName}" programı için mülakatınız ${scheduledAt.toLocaleString('tr-TR')} tarihinde ${dto.location} adresinde yapılacaktır. (${listType})`,
+            metadata: { applicationId: app.id },
+          })
+          .catch(() => {});
+      }
+
+      if (userEmail && userFirstName) {
+        this.emailService
+          .sendInterviewInvitation({
+            to: userEmail,
+            firstName: userFirstName,
+            programName,
+            scheduledAt,
+            location: dto.location,
+            notes: dto.notes,
+          })
+          .catch(() => {});
+      }
+
+      count++;
+    }
+
+    return { count };
   }
 
   private async assertAccess(

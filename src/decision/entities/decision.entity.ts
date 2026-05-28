@@ -1,4 +1,4 @@
-import { Entity, ManyToOne, PrimaryGeneratedColumn, JoinColumn, Column } from 'typeorm';
+import { Entity, ManyToOne, PrimaryGeneratedColumn, JoinColumn, Column, DeleteDateColumn } from 'typeorm';
 import { Application } from 'src/applications/entities/application.entity';
 import { User } from 'src/users/entities/user.entity';
 
@@ -43,4 +43,7 @@ export class Decision {
 
     @Column({ name: 'updated_by', type: 'int', nullable: true })
     updatedBy?: number;
+
+    @DeleteDateColumn({ name: 'deleted_at', nullable: true })
+    deletedAt?: Date;
 }

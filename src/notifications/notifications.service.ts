@@ -43,7 +43,7 @@ export class NotificationsService {
   }
 
   async delete(id: number, userId: number): Promise<{ message: string }> {
-    await this.repo.delete({ id, userId });
+    await this.repo.softDelete({ id, userId });
     return { message: 'Bildirim silindi.' };
   }
 }

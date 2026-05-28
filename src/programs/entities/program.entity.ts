@@ -87,6 +87,12 @@ export class Program {
     @Column({ name: 'jury_size', type: 'int', nullable: true })
     jurySize?: number;
 
+    @Column({ name: 'main_list_count', type: 'int', nullable: true })
+    mainListCount?: number;
+
+    @Column({ name: 'backup_list_count', type: 'int', nullable: true })
+    backupListCount?: number;
+
     @Column({ name: 'requirements', type: 'text', nullable: true })
     requirements?: string;
 

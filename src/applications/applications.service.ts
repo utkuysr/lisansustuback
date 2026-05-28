@@ -91,8 +91,8 @@ export class ApplicationsService {
       throw new BadRequestException(`Bu program için minimum ALES puanı ${program.minAlesScore}'dır. Girdiğiniz puan: ${dto.alesScore}.`);
 
     if (program.minGpa != null && dto.GradePointAverage != null) {
-      const gpaOn4 = dto.gpaScale === '100' ? dto.GradePointAverage / 25 : dto.GradePointAverage;
-      if (gpaOn4 < program.minGpa)
+      // GradePointAverage is always sent in 4.0 scale (frontend converts 100-scale before sending)
+      if (dto.GradePointAverage < program.minGpa)
         throw new BadRequestException(`Bu program için minimum not ortalaması ${program.minGpa} (4'lük sistem) olarak belirlenmiştir.`);
     }
 

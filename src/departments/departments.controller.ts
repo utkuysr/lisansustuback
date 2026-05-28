@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, Request, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Put, Query, Request, UseGuards, ForbiddenException } from '@nestjs/common';
 import { DepartmentsService } from './departments.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -11,8 +11,13 @@ export class DepartmentsController {
   constructor(private readonly service: DepartmentsService) {}
 
   @Get()
-  findAll(@Query('instituteId') instituteId?: string) {
-    return this.service.findAll(instituteId ? +instituteId : undefined);
+  findAll(@Query('instituteId') instituteId?: string, @Query('withArchived') withArchived?: string) {
+    return this.service.findAll(instituteId ? +instituteId : undefined, withArchived === 'true');
+  }
+
+  @Get('archived')
+  findArchived(@Query('instituteId') instituteId?: string) {
+    return this.service.findArchived(instituteId ? +instituteId : undefined);
   }
 
   @Get(':id')
@@ -34,7 +39,14 @@ export class DepartmentsController {
 
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Sadece admin bölüm silebilir.');
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Sadece admin anabilim dalı arşivleyebilir.');
     return this.service.remove(id);
+  }
+
+  @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
+  restore(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Sadece admin anabilim dalı geri yükleyebilir.');
+    return this.service.restore(id);
   }
 }

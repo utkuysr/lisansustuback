@@ -5,7 +5,7 @@ import {
     BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { Decision, DecisionStatus } from './entities/decision.entity';
 import { Application, ApplicationStatus } from 'src/applications/entities/application.entity';
 import { User } from 'src/users/entities/user.entity';
@@ -315,6 +315,22 @@ export class DecisionService {
     async remove(id: number): Promise<void> {
         const decision = await this.decisionRepository.findOne({ where: { id }, relations: ['application'] });
         if (!decision) throw new NotFoundException('Karar bulunamadı.');
-        await this.decisionRepository.remove(decision);
+        await this.decisionRepository.softDelete({ id });
+    }
+
+    async restore(id: number): Promise<void> {
+        const decision = await this.decisionRepository.findOne({ where: { id }, withDeleted: true });
+        if (!decision) throw new NotFoundException('Karar bulunamadı.');
+        if (!decision.deletedAt) throw new BadRequestException('Bu karar arşivlenmemiş.');
+        await this.decisionRepository.restore({ id });
+    }
+
+    async findAllArchived(): Promise<Decision[]> {
+        return this.decisionRepository.find({
+            where: { deletedAt: Not(IsNull()) } as any,
+            withDeleted: true,
+            relations: ['application', 'application.program', 'application.user', 'commissioner'],
+            order: { deletedAt: 'DESC' },
+        });
     }
 }

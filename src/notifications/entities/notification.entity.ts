@@ -1,5 +1,5 @@
 import { User } from 'src/users/entities/user.entity';
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 export enum NotificationType {
   APPLICATION_SUBMITTED = 'application_submitted',
@@ -45,4 +45,7 @@ export class Notification {
 
   @Column({ name: 'read_at', type: 'timestamp', nullable: true })
   readAt?: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at', nullable: true })
+  deletedAt?: Date;
 }

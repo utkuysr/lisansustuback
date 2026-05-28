@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Request, ForbiddenException, HttpCode, HttpStatus, UseInterceptors, ClassSerializerInterceptor } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Request, ForbiddenException, HttpCode, HttpStatus, UseInterceptors, ClassSerializerInterceptor, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -25,11 +25,11 @@ export class UsersController {
   // Tüm kullanıcıları listele (Admin: hepsi | InstituteManager: sadece görüntüleme için)
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll(@Request() req): Promise<User[]> {
+  findAll(@Request() req, @Query('withArchived') withArchived?: string): Promise<User[]> {
     if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.INSTITUTE_MANAGER) {
       throw new ForbiddenException('Sadece admin kullanıcıları listeleyebilir.');
     }
-    return this.usersService.findAll();
+    return this.usersService.findAll(withArchived === 'true');
   }
 
  @UseInterceptors(ClassSerializerInterceptor)
@@ -93,7 +93,7 @@ export class UsersController {
     return this.usersService.resetPassword(id, body.newPassword);
   }
 
-  // Kullanıcıyı sil (Admin veya kendisi)
+  // Kullanıcıyı arşivle (Admin veya kendisi)
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string, @Request() req): Promise<void> {
@@ -102,5 +102,16 @@ export class UsersController {
       throw new ForbiddenException('Sadece kendi hesabınızı silebilirsiniz (veya admin olmalısınız).');
     }
     return this.usersService.remove(id);
+  }
+
+  // Kullanıcıyı geri yükle (Admin)
+  @Post(':id/restore')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  restore(@Param('id') id: string, @Request() req): Promise<void> {
+    if (req.user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Sadece admin kullanıcı geri yükleyebilir.');
+    }
+    return this.usersService.restore(id);
   }
 }

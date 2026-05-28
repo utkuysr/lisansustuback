@@ -61,10 +61,10 @@ export class CreateApplicationDto {
   @MaxLength(255)
   graduateUniversity: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(255)
-  graduateFaculty: string;
+  graduateFaculty?: string;
 
   @IsString()
   @IsNotEmpty()

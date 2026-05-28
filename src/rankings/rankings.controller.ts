@@ -40,4 +40,22 @@ export class RankingsController {
   ) {
     return this.service.overrideDecision(rankingId, body.applicationId, body.decision, req.user.sub, req.user.role);
   }
+
+  @Post(':rankingId/schedule-interviews')
+  scheduleInterviews(
+    @Param('rankingId', ParseIntPipe) rankingId: number,
+    @Body() body: { scheduledAt: string; location: string; notes?: string },
+    @Request() req: any,
+  ) {
+    return this.service.scheduleInterviews(rankingId, body, req.user.sub, req.user.role);
+  }
+
+  @Put(':rankingId/interview-scores')
+  updateInterviewScores(
+    @Param('rankingId', ParseIntPipe) rankingId: number,
+    @Body() body: { entries: { applicationId: number; interviewScore: number }[] },
+    @Request() req: any,
+  ) {
+    return this.service.updateInterviewScores(rankingId, body.entries, req.user.sub, req.user.role);
+  }
 }

@@ -1,6 +1,6 @@
 import {
   Body, Controller, Delete, Get, Param, ParseIntPipe,
-  Post, Put, Request, UseGuards, ForbiddenException,
+  Post, Put, Request, UseGuards, ForbiddenException, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { InterviewsService } from './interviews.service';
@@ -53,9 +53,24 @@ export class InterviewsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Mülakat sil (Admin)' })
+  @ApiOperation({ summary: 'Mülakat arşivle (Admin)' })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Sadece admin mülakat silebilir.');
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Sadece admin mülakat arşivleyebilir.');
     return this.service.remove(id);
+  }
+
+  @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Arşivlenen mülakatı geri yükle (Admin)' })
+  async restore(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Sadece admin mülakat geri yükleyebilir.');
+    return this.service.restore(id);
+  }
+
+  @Get('archived/list')
+  @ApiOperation({ summary: 'Arşivlenen mülakatları listele (Admin)' })
+  async findArchived(@Request() req) {
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Sadece admin arşivlenen mülakatları görebilir.');
+    return this.service.findAllArchived();
   }
 }

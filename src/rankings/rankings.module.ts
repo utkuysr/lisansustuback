@@ -8,12 +8,13 @@ import { Program } from 'src/programs/entities/program.entity';
 import { Decision } from 'src/decision/entities/decision.entity';
 import { ProgramCommissioner } from 'src/programs/entities/program-commissioner.entity';
 import { InstituteManager } from 'src/institute-managers/entities/institute-manager.entity';
+import { Interview } from 'src/interviews/entities/interview.entity';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ProgramRanking, Application, Program, Decision, ProgramCommissioner, InstituteManager]),
+    TypeOrmModule.forFeature([ProgramRanking, Application, Program, Decision, ProgramCommissioner, InstituteManager, Interview]),
     NotificationsModule,
     AuthModule,
   ],

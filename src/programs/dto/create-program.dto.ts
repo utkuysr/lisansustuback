@@ -136,6 +136,18 @@ export class CreateProgramDto {
   jurySize?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  mainListCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  backupListCount?: number;
+
+  @IsOptional()
   @IsString()
   requirements?: string;
 

@@ -64,6 +64,46 @@ export class EmailService {
     }
   }
 
+  async sendInterviewInvitation(params: {
+    to: string;
+    firstName: string;
+    programName: string;
+    scheduledAt: Date;
+    location: string;
+    notes?: string;
+  }): Promise<void> {
+    const dateStr = params.scheduledAt.toLocaleString('tr-TR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const notesHtml = params.notes ? `<p style="margin:8px 0 0;color:#6b7280;"><strong>Notlar:</strong> ${params.notes}</p>` : '';
+
+    await this.transporter.sendMail({
+      from: process.env.SMTP_FROM || 'noreply@example.com',
+      to: params.to,
+      subject: `Mülakat Daveti — ${params.programName}`,
+      html: `
+        <div style="font-family:Inter,Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#f9fafb;border-radius:12px;">
+          <h2 style="color:#1a3a6b;margin-bottom:8px;">Mülakat Davetiyesi</h2>
+          <p style="color:#374151;">Sayın <strong>${params.firstName}</strong>,</p>
+          <p style="color:#374151;"><strong>${params.programName}</strong> programı için ön değerlendirme aşamasını başarıyla tamamladınız ve mülakata davet edildiniz.</p>
+          <div style="background:#fff;border:2px solid #1a3a6b;border-radius:8px;padding:20px;margin:20px 0;">
+            <p style="margin:0 0 8px;color:#374151;"><strong>📅 Tarih ve Saat:</strong> ${dateStr}</p>
+            <p style="margin:0;color:#374151;"><strong>📍 Yer:</strong> ${params.location}</p>
+            ${notesHtml}
+          </div>
+          <p style="color:#6b7280;font-size:14px;">Lütfen belirtilen tarih ve saatte hazır bulununuz.</p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;"/>
+          <p style="color:#9ca3af;font-size:12px;">LBS Portal — Lisansüstü Başvuru Sistemi</p>
+        </div>
+      `,
+    });
+  }
+
   async sendDecisionNotification(params: {
     to: string;
     firstName: string;

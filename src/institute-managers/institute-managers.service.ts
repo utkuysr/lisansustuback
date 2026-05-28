@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InstituteManager } from './entities/institute-manager.entity';
@@ -48,6 +48,18 @@ export class InstituteManagersService {
   async remove(id: number): Promise<void> {
     const manager = await this.repo.findOneBy({ id });
     if (!manager) throw new NotFoundException('Atama bulunamadı.');
-    await this.repo.remove(manager);
+    await this.repo.softDelete({ id });
+  }
+
+  async restore(id: number): Promise<void> {
+    const manager = await this.repo.findOne({ where: { id }, withDeleted: true, relations: ['institute'] });
+    if (!manager) throw new NotFoundException('Atama bulunamadı.');
+    if (!manager.deletedAt) throw new BadRequestException('Bu atama arşivlenmemiş.');
+    const instituteId = (manager.institute as any)?.id;
+    if (instituteId) {
+      const existing = await this.repo.findOne({ where: { institute: { id: instituteId } } as any });
+      if (existing) throw new ConflictException('Bu enstitüye zaten aktif bir yönetici atanmış.');
+    }
+    await this.repo.restore({ id });
   }
 }

@@ -52,6 +52,17 @@ export class ProgramsService {
     return this.programRepository.save(program);
   }
 
+  async findArchived(filters?: { instituteId?: number }) {
+    const qb = this.programRepository.createQueryBuilder('p')
+      .leftJoinAndSelect('p.department', 'department')
+      .leftJoinAndSelect('department.institute', 'dept_institute')
+      .leftJoinAndSelect('p.institute', 'institute')
+      .withDeleted()
+      .where('p.deleted_at IS NOT NULL');
+    if (filters?.instituteId) qb.andWhere('institute.id = :instituteId', { instituteId: filters.instituteId });
+    return qb.orderBy('p.deleted_at', 'DESC').getMany();
+  }
+
   async findAll(filters?: { departmentId?: number; instituteId?: number; degreeType?: string; isActive?: boolean }) {
     const qb = this.programRepository.createQueryBuilder('p')
       .leftJoinAndSelect('p.department', 'department')
@@ -71,6 +82,16 @@ export class ProgramsService {
     const program = await this.programRepository.findOne({
       where: { id },
       relations: ['department', 'department.institute', 'institute'],
+    });
+    if (!program) throw new NotFoundException('Program bulunamadı.');
+    return program;
+  }
+
+  async findOneAny(id: number) {
+    const program = await this.programRepository.findOne({
+      where: { id },
+      relations: ['department', 'department.institute', 'institute'],
+      withDeleted: true,
     });
     if (!program) throw new NotFoundException('Program bulunamadı.');
     return program;
@@ -110,7 +131,6 @@ export class ProgramsService {
 
   async remove(id: number) {
     const program = await this.findOne(id);
-    // Aktif (arşivlenmemiş) başvurusu olan program silinemez
     const activeApplications = await this.programRepository.manager
       .query(
         `SELECT COUNT(*) AS cnt FROM belek_graduate_admission.applications
@@ -120,11 +140,19 @@ export class ProgramsService {
     const activeCount = parseInt(activeApplications?.[0]?.cnt ?? '0', 10);
     if (activeCount > 0) {
       throw new BadRequestException(
-        `Bu programa ait ${activeCount} aktif başvuru bulunmaktadır. Program silinemez.`,
+        `Bu programa ait ${activeCount} aktif başvuru bulunmaktadır. Program arşivlenemez.`,
       );
     }
     await this.programRepository.softRemove(program);
-    return { message: 'Program silindi.' };
+    return { message: 'Program arşivlendi.' };
+  }
+
+  async restore(id: number) {
+    const program = await this.programRepository.findOne({ where: { id }, withDeleted: true });
+    if (!program) throw new NotFoundException('Program bulunamadı.');
+    if (!program.deletedAt) throw new BadRequestException('Bu program arşivlenmemiş.');
+    await this.programRepository.restore({ id });
+    return { message: 'Program geri yüklendi.' };
   }
 
   async getQuotaStatus(programId: number): Promise<{ quota: number; accepted: number; available: number }> {

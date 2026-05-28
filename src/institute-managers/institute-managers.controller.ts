@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Request, UseGuards } from '@nestjs/common';
 import { InstituteManagersService } from './institute-managers.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { UserRole } from 'src/common/constants/roles.constants';
@@ -34,5 +34,12 @@ export class InstituteManagersController {
   remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
     if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException();
     return this.service.remove(id);
+  }
+
+  @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
+  restore(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException();
+    return this.service.restore(id);
   }
 }

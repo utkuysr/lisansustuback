@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -15,9 +15,14 @@ export class DepartmentsService {
     private readonly instituteRepo: Repository<Institute>,
   ) {}
 
-  findAll(instituteId?: number): Promise<Department[]> {
+  findAll(instituteId?: number, withArchived = false): Promise<Department[]> {
     const where: any = instituteId ? { institute: { id: instituteId } } : {};
-    return this.repo.find({ where, relations: ['institute'], order: { name: 'ASC' } });
+    return this.repo.find({ where, relations: ['institute'], order: { name: 'ASC' }, withDeleted: withArchived });
+  }
+
+  findArchived(instituteId?: number): Promise<Department[]> {
+    const where: any = { deletedAt: Not(IsNull()), ...(instituteId ? { institute: { id: instituteId } } : {}) };
+    return this.repo.find({ where, relations: ['institute'], order: { deletedAt: 'DESC' }, withDeleted: true });
   }
 
   async findOne(id: number): Promise<Department> {
@@ -62,6 +67,14 @@ export class DepartmentsService {
   async remove(id: number): Promise<{ message: string }> {
     const dept = await this.findOne(id);
     await this.repo.softRemove(dept);
-    return { message: 'Bölüm silindi.' };
+    return { message: 'Anabilim dalı arşivlendi.' };
+  }
+
+  async restore(id: number): Promise<{ message: string }> {
+    const dept = await this.repo.findOne({ where: { id }, withDeleted: true });
+    if (!dept) throw new NotFoundException('Anabilim dalı bulunamadı.');
+    if (!dept.deletedAt) throw new BadRequestException('Bu anabilim dalı arşivlenmemiş.');
+    await this.repo.restore({ id });
+    return { message: 'Anabilim dalı geri yüklendi.' };
   }
 }
